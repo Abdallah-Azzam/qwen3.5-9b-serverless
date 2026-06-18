@@ -4,7 +4,7 @@ import os
 
 from huggingface_hub import snapshot_download
 
-HF_MODEL = os.environ.get("HF_MODEL", "QuantTrio/Qwen3.5-9B-AWQ")
+HF_MODEL = os.environ.get("HF_MODEL", "Qwen/Qwen3.5-9B")
 MODEL_DIR = os.environ.get("MODEL_DIR", "/models")
 
 

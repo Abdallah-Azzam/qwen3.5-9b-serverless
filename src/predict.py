@@ -8,12 +8,12 @@ from typing import Any, Dict, List, Optional
 from vllm import LLM, SamplingParams
 
 DEFAULT_MODEL_DIR = os.environ.get("MODEL_DIR", "/models")
-DEFAULT_MODEL_NAME = os.environ.get("DISPLAY_MODEL_NAME", "Qwen3.5-9B-AWQ")
+DEFAULT_MODEL_NAME = os.environ.get("DISPLAY_MODEL_NAME", "Qwen3.5-9B")
 DEFAULT_MAX_TOKENS = int(os.environ.get("DEFAULT_MAX_TOKENS", "4096"))
 MAX_TOKENS_LIMIT = int(os.environ.get("MAX_TOKENS_LIMIT", "16384"))
-MAX_MODEL_LEN = int(os.environ.get("MAX_MODEL_LEN", "32768"))
+MAX_MODEL_LEN = int(os.environ.get("MAX_MODEL_LEN", "8192"))
 GPU_MEMORY_UTILIZATION = float(os.environ.get("GPU_MEMORY_UTILIZATION", "0.90"))
-QUANTIZATION = os.environ.get("QUANTIZATION", "awq").strip().lower()
+QUANTIZATION = os.environ.get("QUANTIZATION", "none").strip().lower()
 ENABLE_THINKING = os.environ.get("ENABLE_THINKING", "false").lower() in (
     "1",
     "true",
@@ -37,7 +37,7 @@ class Predictor:
 
         model_path = DEFAULT_MODEL_DIR
         if not os.path.isdir(model_path):
-            model_path = os.environ.get("HF_MODEL", "QuantTrio/Qwen3.5-9B-AWQ")
+            model_path = os.environ.get("HF_MODEL", "Qwen/Qwen3.5-9B")
 
         llm_kwargs: Dict[str, Any] = {
             "model": model_path,

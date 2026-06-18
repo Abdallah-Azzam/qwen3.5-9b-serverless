@@ -1,12 +1,12 @@
 # Qwen3.5 9B Chat Endpoint
 
-RunPod Serverless worker for **Qwen3.5-9B** chat completions via **vLLM** (AWQ INT4 by default, non-thinking instruct mode).
+RunPod Serverless worker for **Qwen3.5-9B** chat completions via **vLLM** (`Qwen/Qwen3.5-9B` BF16 by default, non-thinking instruct mode).
 
 ## Deploy
 
 1. Push this repo to GitHub or build the Docker image locally.
 2. Create a RunPod Serverless endpoint from the image (or publish via RunPod Hub).
-3. Choose a **24 GB GPU** (recommended) and set container disk to **≥ 30 GB**.
+3. Choose a **24 GB GPU** and set container disk to **≥ 40 GB**.
 
 ### Manual Docker build
 
@@ -26,7 +26,7 @@ VRAM = model weights + KV cache (grows with context) + ~1–2 GB vLLM overhead.
 
 | Precision | HF model | Weight VRAM |
 |-----------|----------|-------------|
-| BF16 / FP16 | `Qwen/Qwen3.5-9B` | ~18–19 GB |
+| **BF16 / FP16 (default)** | `Qwen/Qwen3.5-9B` | ~18–19 GB |
 | AWQ INT4 | `QuantTrio/Qwen3.5-9B-AWQ` | ~6–7 GB |
 
 ### KV cache add-on (batch size 1, approximate)
@@ -41,21 +41,21 @@ VRAM = model weights + KV cache (grows with context) + ~1–2 GB vLLM overhead.
 
 | Profile | Est. total VRAM | GPU |
 |---------|-----------------|-----|
-| **Default (AWQ + 32K)** | ~11–12 GB | **24 GB** (ADA_24, RTX 4090, A10) |
-| Budget (AWQ + 8K) | ~8–9 GB | 16 GB (L4, RTX A4000) |
-| Max quality (BF16 + 8K) | ~20–22 GB | 24 GB (tight) |
+| **Default (BF16 + 8K)** | ~20–22 GB | **24 GB** (ADA_24, RTX 4090, A10) |
+| BF16 + 32K | ~24–26 GB | 48 GB (OOM risk on 24 GB) |
+| Budget (AWQ + 32K) | ~11–12 GB | 16–24 GB |
 
-Use a **24 GB GPU** with the default AWQ preset. Lower `MAX_MODEL_LEN` to `8192` if using a 16 GB GPU.
+Use a **24 GB GPU** with the default BF16 preset. BF16 + 32K context does not fit comfortably on 24 GB — use AWQ or a 48 GB GPU for long context.
 
 ### OOM troubleshooting
 
-- Lower `MAX_MODEL_LEN` (e.g. `8192`)
+- Lower `MAX_MODEL_LEN` (e.g. `4096`)
 - Lower `GPU_MEMORY_UTILIZATION` (e.g. `0.85`)
-- Keep `QUANTIZATION=awq` (do not use BF16 on 24 GB with long context)
+- Switch to AWQ (`QUANTIZATION=awq`, `HF_MODEL=QuantTrio/Qwen3.5-9B-AWQ`) for more headroom
 
 ## Features
 
-- Pre-baked `QuantTrio/Qwen3.5-9B-AWQ` weights at image build time
+- Pre-baked `Qwen/Qwen3.5-9B` weights at image build time (BF16, closest vLLM match to local Q8 quality)
 - Non-thinking instruct mode (`ENABLE_THINKING=false`)
 - Text-only inference (`language_model_only`) — skips vision encoder
 - OpenAI-style `messages` input via RunPod job payload
@@ -86,7 +86,7 @@ Use a **24 GB GPU** with the default AWQ preset. Lower `MAX_MODEL_LEN` to `8192`
   "status": "COMPLETED",
   "output": {
     "content": "assistant reply text",
-    "model": "Qwen3.5-9B-AWQ",
+    "model": "Qwen3.5-9B",
     "usage": {
       "prompt_tokens": 120,
       "completion_tokens": 340
@@ -110,11 +110,11 @@ Use a **24 GB GPU** with the default AWQ preset. Lower `MAX_MODEL_LEN` to `8192`
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `HF_MODEL` | `QuantTrio/Qwen3.5-9B-AWQ` | HuggingFace model ID (baked at build) |
+| `HF_MODEL` | `Qwen/Qwen3.5-9B` | HuggingFace model ID (baked at build) |
 | `MODEL_DIR` | `/models` | Local path to baked weights |
-| `DISPLAY_MODEL_NAME` | `Qwen3.5-9B-AWQ` | Name returned in responses |
-| `QUANTIZATION` | `awq` | vLLM quant method (`none` for BF16) |
-| `MAX_MODEL_LEN` | `32768` | Context window cap |
+| `DISPLAY_MODEL_NAME` | `Qwen3.5-9B` | Name returned in responses |
+| `QUANTIZATION` | `none` | vLLM quant method (`awq` for AWQ variant) |
+| `MAX_MODEL_LEN` | `8192` | Context window cap |
 | `DEFAULT_MAX_TOKENS` | `4096` | Default completion length |
 | `MAX_TOKENS_LIMIT` | `16384` | Hard cap per request |
 | `GPU_MEMORY_UTILIZATION` | `0.90` | vLLM VRAM fraction |
@@ -130,4 +130,3 @@ curl -X POST "https://api.runpod.ai/v2/{ENDPOINT_ID}/runsync" \
 ```
 
 For long-running jobs, use async `/run` + `/status/{job_id}` polling.
-

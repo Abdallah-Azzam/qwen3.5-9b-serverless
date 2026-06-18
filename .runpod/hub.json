@@ -1,18 +1,31 @@
 {
   "title": "Qwen3.5 9B Chat Endpoint",
-  "description": "vLLM serverless chat completions for Qwen3.5-9B (AWQ INT4, non-thinking instruct). Accepts OpenAI-style messages via RunPod job input.",
+  "description": "vLLM serverless chat completions for Qwen3.5-9B (BF16, non-thinking instruct). Accepts OpenAI-style messages via RunPod job input.",
   "type": "serverless",
   "category": "text",
   "iconUrl": "https://dummyimage.com/100x100/1a1a2e/fff&text=Q",
   "config": {
     "runsOn": "GPU",
-    "containerDiskInGb": 30,
+    "containerDiskInGb": 40,
     "gpuCount": 1,
     "gpuIds": "ADA_24",
     "allowedCudaVersions": ["12.7", "12.6", "12.5", "12.4", "12.3", "12.2"],
     "presets": [
       {
-        "name": "Default (AWQ, 32K context)",
+        "name": "Default (BF16, 8K context)",
+        "defaults": {
+          "HF_MODEL": "Qwen/Qwen3.5-9B",
+          "DISPLAY_MODEL_NAME": "Qwen3.5-9B",
+          "QUANTIZATION": "none",
+          "MAX_MODEL_LEN": "8192",
+          "DEFAULT_MAX_TOKENS": "4096",
+          "MAX_TOKENS_LIMIT": "16384",
+          "GPU_MEMORY_UTILIZATION": "0.90",
+          "ENABLE_THINKING": "false"
+        }
+      },
+      {
+        "name": "Budget (AWQ, 32K context)",
         "defaults": {
           "HF_MODEL": "QuantTrio/Qwen3.5-9B-AWQ",
           "DISPLAY_MODEL_NAME": "Qwen3.5-9B-AWQ",
@@ -23,37 +36,24 @@
           "GPU_MEMORY_UTILIZATION": "0.90",
           "ENABLE_THINKING": "false"
         }
-      },
-      {
-        "name": "Budget (16 GB GPU, 8K context)",
-        "defaults": {
-          "HF_MODEL": "QuantTrio/Qwen3.5-9B-AWQ",
-          "DISPLAY_MODEL_NAME": "Qwen3.5-9B-AWQ",
-          "QUANTIZATION": "awq",
-          "MAX_MODEL_LEN": "8192",
-          "DEFAULT_MAX_TOKENS": "4096",
-          "MAX_TOKENS_LIMIT": "8192",
-          "GPU_MEMORY_UTILIZATION": "0.85",
-          "ENABLE_THINKING": "false"
-        }
       }
     ],
     "env": [
       {
         "key": "HF_MODEL",
-        "value": "QuantTrio/Qwen3.5-9B-AWQ"
+        "value": "Qwen/Qwen3.5-9B"
       },
       {
         "key": "DISPLAY_MODEL_NAME",
-        "value": "Qwen3.5-9B-AWQ"
+        "value": "Qwen3.5-9B"
       },
       {
         "key": "QUANTIZATION",
         "input": {
           "name": "Quantization",
           "type": "string",
-          "description": "vLLM quantization method (awq, gptq, or none for BF16)",
-          "default": "awq"
+          "description": "vLLM quantization method (none for BF16, or awq/gptq)",
+          "default": "none"
         }
       },
       {
@@ -61,10 +61,10 @@
         "input": {
           "name": "Max model length",
           "type": "number",
-          "description": "Context window cap (lower if OOM on 16 GB GPUs)",
+          "description": "Context window cap (BF16: use 8192 on 24 GB; AWQ can go to 32768)",
           "min": 2048,
           "max": 131072,
-          "default": 32768
+          "default": 8192
         }
       },
       {

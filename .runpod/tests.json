@@ -21,15 +21,15 @@
     "env": [
       {
         "key": "HF_MODEL",
-        "value": "QuantTrio/Qwen3.5-9B-AWQ"
+        "value": "Qwen/Qwen3.5-9B"
       },
       {
         "key": "QUANTIZATION",
-        "value": "awq"
+        "value": "none"
       },
       {
         "key": "MAX_MODEL_LEN",
-        "value": "32768"
+        "value": "8192"
       },
       {
         "key": "ENABLE_THINKING",
