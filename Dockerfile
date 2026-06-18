@@ -42,7 +42,7 @@ COPY builder/requirements.txt /requirements.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --upgrade pip && \
     pip install -r /requirements.txt --no-cache-dir && \
-    pip install --pre 'vllm>0.16.0' --extra-index-url https://wheels.vllm.ai/nightly --no-cache-dir
+    pip install 'vllm==0.23.0' --extra-index-url https://download.pytorch.org/whl/cu129 --no-cache-dir
 
 COPY builder/fetch_models.py /fetch_models.py
 ARG HF_TOKEN=""
