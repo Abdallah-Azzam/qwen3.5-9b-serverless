@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import threading
 from typing import Any, Dict, List, Optional
 
 from vllm import LLM, SamplingParams
@@ -27,6 +28,7 @@ class Predictor:
     def __init__(self) -> None:
         self.llm: Optional[LLM] = None
         self.model_name = DEFAULT_MODEL_NAME
+        self._load_lock = threading.Lock()
 
     def setup(self) -> None:
         self._load_model()
@@ -35,27 +37,32 @@ class Predictor:
         if self.llm is not None:
             return self.llm
 
-        model_path = DEFAULT_MODEL_DIR
-        if not os.path.isdir(model_path):
-            model_path = os.environ.get("HF_MODEL", "Qwen/Qwen3.5-9B")
+        with self._load_lock:
+            if self.llm is not None:
+                return self.llm
 
-        llm_kwargs: Dict[str, Any] = {
-            "model": model_path,
-            "max_model_len": MAX_MODEL_LEN,
-            "gpu_memory_utilization": GPU_MEMORY_UTILIZATION,
-            "trust_remote_code": True,
-            "language_model_only": True,
-        }
-        if QUANTIZATION and QUANTIZATION not in ("none", "false", "off"):
-            llm_kwargs["quantization"] = QUANTIZATION
+            model_path = DEFAULT_MODEL_DIR
+            if not os.path.isdir(model_path):
+                model_path = os.environ.get("HF_MODEL", "Qwen/Qwen3.5-9B")
 
-        print(
-            f"Loading model from {model_path} "
-            f"(quantization={QUANTIZATION or 'none'}, max_model_len={MAX_MODEL_LEN})..."
-        )
-        self.llm = LLM(**llm_kwargs)
-        print(f"Model {self.model_name} loaded.")
-        return self.llm
+            llm_kwargs: Dict[str, Any] = {
+                "model": model_path,
+                "max_model_len": MAX_MODEL_LEN,
+                "gpu_memory_utilization": GPU_MEMORY_UTILIZATION,
+                "trust_remote_code": True,
+                "language_model_only": True,
+            }
+            if QUANTIZATION and QUANTIZATION not in ("none", "false", "off"):
+                llm_kwargs["quantization"] = QUANTIZATION
+
+            print(
+                f"Loading model from {model_path} "
+                f"(quantization={QUANTIZATION or 'none'}, max_model_len={MAX_MODEL_LEN})...",
+                flush=True,
+            )
+            self.llm = LLM(**llm_kwargs)
+            print(f"Model {self.model_name} loaded.", flush=True)
+            return self.llm
 
     def predict(
         self,

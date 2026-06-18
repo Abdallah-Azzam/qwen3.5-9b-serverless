@@ -1,6 +1,7 @@
 """RunPod serverless handler for Qwen3.5-9B chat via vLLM."""
 
 import os
+import threading
 from typing import Any, Dict, List, Optional
 
 import runpod
@@ -10,7 +11,16 @@ from runpod.serverless.utils import rp_debugger
 from runpod.serverless.utils.rp_validator import validate
 
 MODEL = Predictor()
-MODEL.setup()
+
+
+def _preload_model() -> None:
+    try:
+        MODEL.setup()
+    except Exception as exc:
+        print(f"Background model preload failed: {exc}", flush=True)
+
+
+threading.Thread(target=_preload_model, daemon=True).start()
 
 VALID_ROLES = frozenset({"system", "user", "assistant"})
 
@@ -64,6 +74,11 @@ def _apply_env_defaults(job_input: dict) -> dict:
 
 @rp_debugger.FunctionTimer
 def run_llm_job(job: Dict[str, Any]) -> Dict[str, Any]:
+    try:
+        MODEL.setup()
+    except Exception as exc:
+        return {"error": f"Model load failed: {exc}"}
+
     job_input = job["input"]
 
     with rp_debugger.LineTimer("validation_step"):
