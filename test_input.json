@@ -1,0 +1,12 @@
+{
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "Say hello in one sentence."
+      }
+    ],
+    "temperature": 0.1,
+    "max_tokens": 64
+  }
+}

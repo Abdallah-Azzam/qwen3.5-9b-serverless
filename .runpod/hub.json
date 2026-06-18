@@ -1,0 +1,118 @@
+{
+  "title": "Qwen3.5 9B Chat Endpoint",
+  "description": "vLLM serverless chat completions for Qwen3.5-9B (AWQ INT4, non-thinking instruct). Accepts OpenAI-style messages via RunPod job input.",
+  "type": "serverless",
+  "category": "text",
+  "iconUrl": "https://dummyimage.com/100x100/1a1a2e/fff&text=Q",
+  "config": {
+    "runsOn": "GPU",
+    "containerDiskInGb": 30,
+    "gpuCount": 1,
+    "gpuIds": "ADA_24",
+    "allowedCudaVersions": ["12.7", "12.6", "12.5", "12.4", "12.3", "12.2"],
+    "presets": [
+      {
+        "name": "Default (AWQ, 32K context)",
+        "defaults": {
+          "HF_MODEL": "QuantTrio/Qwen3.5-9B-AWQ",
+          "DISPLAY_MODEL_NAME": "Qwen3.5-9B-AWQ",
+          "QUANTIZATION": "awq",
+          "MAX_MODEL_LEN": "32768",
+          "DEFAULT_MAX_TOKENS": "4096",
+          "MAX_TOKENS_LIMIT": "16384",
+          "GPU_MEMORY_UTILIZATION": "0.90",
+          "ENABLE_THINKING": "false"
+        }
+      },
+      {
+        "name": "Budget (16 GB GPU, 8K context)",
+        "defaults": {
+          "HF_MODEL": "QuantTrio/Qwen3.5-9B-AWQ",
+          "DISPLAY_MODEL_NAME": "Qwen3.5-9B-AWQ",
+          "QUANTIZATION": "awq",
+          "MAX_MODEL_LEN": "8192",
+          "DEFAULT_MAX_TOKENS": "4096",
+          "MAX_TOKENS_LIMIT": "8192",
+          "GPU_MEMORY_UTILIZATION": "0.85",
+          "ENABLE_THINKING": "false"
+        }
+      }
+    ],
+    "env": [
+      {
+        "key": "HF_MODEL",
+        "value": "QuantTrio/Qwen3.5-9B-AWQ"
+      },
+      {
+        "key": "DISPLAY_MODEL_NAME",
+        "value": "Qwen3.5-9B-AWQ"
+      },
+      {
+        "key": "QUANTIZATION",
+        "input": {
+          "name": "Quantization",
+          "type": "string",
+          "description": "vLLM quantization method (awq, gptq, or none for BF16)",
+          "default": "awq"
+        }
+      },
+      {
+        "key": "MAX_MODEL_LEN",
+        "input": {
+          "name": "Max model length",
+          "type": "number",
+          "description": "Context window cap (lower if OOM on 16 GB GPUs)",
+          "min": 2048,
+          "max": 131072,
+          "default": 32768
+        }
+      },
+      {
+        "key": "DEFAULT_MAX_TOKENS",
+        "input": {
+          "name": "Default max tokens",
+          "type": "number",
+          "description": "Default completion length when request omits max_tokens",
+          "min": 1,
+          "max": 65536,
+          "default": 4096
+        }
+      },
+      {
+        "key": "MAX_TOKENS_LIMIT",
+        "input": {
+          "name": "Max tokens limit",
+          "type": "number",
+          "description": "Hard cap per request to protect VRAM",
+          "min": 1,
+          "max": 65536,
+          "default": 16384,
+          "advanced": true
+        }
+      },
+      {
+        "key": "GPU_MEMORY_UTILIZATION",
+        "input": {
+          "name": "GPU memory utilization",
+          "type": "number",
+          "description": "Fraction of GPU VRAM vLLM may use (lower if OOM)",
+          "min": 0.5,
+          "max": 0.95,
+          "default": 0.9,
+          "advanced": true
+        }
+      },
+      {
+        "key": "ENABLE_THINKING",
+        "input": {
+          "type": "boolean",
+          "name": "Enable thinking",
+          "description": "Qwen3.5 chain-of-thought mode (off for instruct/medical use)",
+          "default": false,
+          "trueValue": "true",
+          "falseValue": "false"
+        }
+      }
+    ]
+  }
+}

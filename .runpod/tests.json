@@ -1,0 +1,48 @@
+{
+  "tests": [
+    {
+      "name": "chat_hello",
+      "input": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Say hello in one sentence."
+          }
+        ],
+        "temperature": 0.1,
+        "max_tokens": 64
+      },
+      "timeout": 300000
+    }
+  ],
+  "config": {
+    "gpuTypeId": "NVIDIA RTX 4000 Ada Generation",
+    "gpuCount": 1,
+    "env": [
+      {
+        "key": "HF_MODEL",
+        "value": "QuantTrio/Qwen3.5-9B-AWQ"
+      },
+      {
+        "key": "QUANTIZATION",
+        "value": "awq"
+      },
+      {
+        "key": "MAX_MODEL_LEN",
+        "value": "32768"
+      },
+      {
+        "key": "ENABLE_THINKING",
+        "value": "false"
+      }
+    ],
+    "allowedCudaVersions": [
+      "12.7",
+      "12.6",
+      "12.5",
+      "12.4",
+      "12.3",
+      "12.2"
+    ]
+  }
+}
