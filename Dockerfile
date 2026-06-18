@@ -45,8 +45,8 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --pre 'vllm>0.16.0' --extra-index-url https://wheels.vllm.ai/nightly --no-cache-dir
 
 COPY builder/fetch_models.py /fetch_models.py
-ARG HF_TOKEN
-RUN HF_TOKEN="${HF_TOKEN}" HUGGING_FACE_HUB_TOKEN="${HF_TOKEN}" \
+ARG HF_TOKEN=""
+RUN if [ -n "${HF_TOKEN}" ]; then export HF_TOKEN HUGGING_FACE_HUB_TOKEN="${HF_TOKEN}"; fi && \
     python /fetch_models.py && rm /fetch_models.py
 
 COPY src .

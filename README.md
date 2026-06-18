@@ -16,7 +16,7 @@ docker build \
   -t qwen35-9b-endpoint .
 ```
 
-Optional `HF_TOKEN` speeds up Hugging Face downloads during the image build.
+Optional `HF_TOKEN` build arg speeds up Hugging Face downloads. Leave it unset for public models (anonymous download).
 
 ## VRAM requirements
 
