@@ -3,6 +3,11 @@
 VALID_REASONING_EFFORTS = frozenset({"none", "low", "medium", "high"})
 
 INPUT_VALIDATIONS = {
+    "messages": {
+        "type": list,
+        "required": False,
+        "default": None,
+    },
     "temperature": {
         "type": float,
         "required": False,
