@@ -1,69 +1,56 @@
 {
   "title": "Qwen3.5 9B Chat Endpoint",
-  "description": "vLLM serverless chat completions for Qwen3.5-9B (BF16, non-thinking instruct). Accepts OpenAI-style messages via RunPod job input.",
+  "description": "Ollama serverless chat completions for sorc/qwen3.5-instruct:9b (Q8_0, MedScribe-parity). Accepts OpenAI-style messages via RunPod job input. Reasoning disabled by default.",
   "type": "serverless",
   "category": "text",
   "iconUrl": "https://dummyimage.com/100x100/1a1a2e/fff&text=Q",
   "config": {
     "runsOn": "GPU",
-    "containerDiskInGb": 40,
+    "containerDiskInGb": 35,
     "gpuCount": 1,
     "gpuIds": "ADA_24",
     "allowedCudaVersions": ["12.9", "12.8", "12.7", "12.6", "12.5", "12.4", "12.3", "12.2"],
     "presets": [
       {
-        "name": "Default (BF16, 8K context)",
+        "name": "Default (sorc Q8, 8K context)",
         "defaults": {
-          "HF_MODEL": "Qwen/Qwen3.5-9B",
-          "DISPLAY_MODEL_NAME": "Qwen3.5-9B",
-          "QUANTIZATION": "none",
-          "MAX_MODEL_LEN": "8192",
+          "LLM_MODEL": "sorc/qwen3.5-instruct:9b",
+          "DISPLAY_MODEL_NAME": "sorc/qwen3.5-instruct:9b",
+          "OLLAMA_NUM_CTX": "8192",
           "DEFAULT_MAX_TOKENS": "4096",
           "MAX_TOKENS_LIMIT": "16384",
-          "GPU_MEMORY_UTILIZATION": "0.90",
           "ENABLE_THINKING": "false"
         }
       },
       {
-        "name": "Budget (AWQ, 32K context)",
+        "name": "Long context (32K)",
         "defaults": {
-          "HF_MODEL": "QuantTrio/Qwen3.5-9B-AWQ",
-          "DISPLAY_MODEL_NAME": "Qwen3.5-9B-AWQ",
-          "QUANTIZATION": "awq",
-          "MAX_MODEL_LEN": "32768",
+          "LLM_MODEL": "sorc/qwen3.5-instruct:9b",
+          "DISPLAY_MODEL_NAME": "sorc/qwen3.5-instruct:9b",
+          "OLLAMA_NUM_CTX": "32768",
           "DEFAULT_MAX_TOKENS": "4096",
           "MAX_TOKENS_LIMIT": "16384",
-          "GPU_MEMORY_UTILIZATION": "0.90",
           "ENABLE_THINKING": "false"
         }
       }
     ],
     "env": [
       {
-        "key": "HF_MODEL",
-        "value": "Qwen/Qwen3.5-9B"
+        "key": "LLM_MODEL",
+        "value": "sorc/qwen3.5-instruct:9b"
       },
       {
         "key": "DISPLAY_MODEL_NAME",
-        "value": "Qwen3.5-9B"
+        "value": "sorc/qwen3.5-instruct:9b"
       },
       {
-        "key": "QUANTIZATION",
+        "key": "OLLAMA_NUM_CTX",
         "input": {
-          "name": "Quantization",
-          "type": "string",
-          "description": "vLLM quantization method (none for BF16, or awq/gptq)",
-          "default": "none"
-        }
-      },
-      {
-        "key": "MAX_MODEL_LEN",
-        "input": {
-          "name": "Max model length",
+          "name": "Context window",
           "type": "number",
-          "description": "Context window cap (BF16: use 8192 on 24 GB; AWQ can go to 32768)",
+          "description": "Ollama num_ctx — 8192 on 16 GB GPUs, up to 32768 on 24 GB",
           "min": 2048,
-          "max": 131072,
+          "max": 32768,
           "default": 8192
         }
       },
@@ -83,22 +70,10 @@
         "input": {
           "name": "Max tokens limit",
           "type": "number",
-          "description": "Hard cap per request to protect VRAM",
+          "description": "Hard cap per request",
           "min": 1,
           "max": 65536,
           "default": 16384,
-          "advanced": true
-        }
-      },
-      {
-        "key": "GPU_MEMORY_UTILIZATION",
-        "input": {
-          "name": "GPU memory utilization",
-          "type": "number",
-          "description": "Fraction of GPU VRAM vLLM may use (lower if OOM)",
-          "min": 0.5,
-          "max": 0.95,
-          "default": 0.9,
           "advanced": true
         }
       },

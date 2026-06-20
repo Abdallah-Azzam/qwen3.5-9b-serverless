@@ -1,68 +1,103 @@
-"""vLLM predictor for Qwen3.5-9B chat completions."""
+"""Ollama predictor for Qwen3.5 chat completions."""
 
 from __future__ import annotations
 
 import os
-import threading
+import subprocess
+import time
 from typing import Any, Dict, List, Optional
 
-from vllm import LLM, SamplingParams
+import requests
 
-DEFAULT_MODEL_DIR = os.environ.get("MODEL_DIR", "/models")
-DEFAULT_MODEL_NAME = os.environ.get("DISPLAY_MODEL_NAME", "Qwen3.5-9B")
+LLM_MODEL = os.environ.get("LLM_MODEL", "sorc/qwen3.5-instruct:9b")
+DISPLAY_MODEL_NAME = os.environ.get("DISPLAY_MODEL_NAME", LLM_MODEL)
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "127.0.0.1:11434")
+OLLAMA_MODELS = os.environ.get("OLLAMA_MODELS", "/root/.ollama")
+OLLAMA_NUM_CTX = int(os.environ.get("OLLAMA_NUM_CTX", "8192"))
+OLLAMA_KEEP_ALIVE = os.environ.get("OLLAMA_KEEP_ALIVE", "-1")
 DEFAULT_MAX_TOKENS = int(os.environ.get("DEFAULT_MAX_TOKENS", "4096"))
 MAX_TOKENS_LIMIT = int(os.environ.get("MAX_TOKENS_LIMIT", "16384"))
-MAX_MODEL_LEN = int(os.environ.get("MAX_MODEL_LEN", "8192"))
-GPU_MEMORY_UTILIZATION = float(os.environ.get("GPU_MEMORY_UTILIZATION", "0.90"))
-QUANTIZATION = os.environ.get("QUANTIZATION", "none").strip().lower()
-ENABLE_THINKING = os.environ.get("ENABLE_THINKING", "false").lower() in (
-    "1",
-    "true",
-    "yes",
-)
+READY_TIMEOUT_SECONDS = 120
+POLL_INTERVAL_SECONDS = 2
+MIN_REQUEST_TIMEOUT_SECONDS = 120
+
+_ollama_proc: Optional[subprocess.Popen[bytes]] = None
+
+
+def _ollama_base_url() -> str:
+    host = OLLAMA_HOST.strip()
+    if host.startswith("http://") or host.startswith("https://"):
+        return host.rstrip("/")
+    return f"http://{host}"
+
+
+def _ollama_env() -> Dict[str, str]:
+    env = os.environ.copy()
+    env["OLLAMA_HOST"] = OLLAMA_HOST
+    env["OLLAMA_MODELS"] = OLLAMA_MODELS
+    if OLLAMA_KEEP_ALIVE:
+        env["OLLAMA_KEEP_ALIVE"] = OLLAMA_KEEP_ALIVE
+    return env
+
+
+def _ollama_is_ready() -> bool:
+    try:
+        response = requests.get(f"{_ollama_base_url()}/api/tags", timeout=5)
+        return response.status_code == 200
+    except requests.RequestException:
+        return False
+
+
+def _ensure_ollama_running() -> None:
+    global _ollama_proc
+
+    if _ollama_is_ready():
+        return
+
+    if _ollama_proc is not None and _ollama_proc.poll() is not None:
+        _ollama_proc = None
+
+    if _ollama_proc is None:
+        print("Starting ollama serve...", flush=True)
+        _ollama_proc = subprocess.Popen(
+            ["ollama", "serve"],
+            env=_ollama_env(),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
+
+    deadline = time.monotonic() + READY_TIMEOUT_SECONDS
+    while time.monotonic() < deadline:
+        if _ollama_proc.poll() is not None:
+            raise RuntimeError("ollama serve exited before becoming ready")
+        if _ollama_is_ready():
+            print("Ollama is ready.", flush=True)
+            return
+        time.sleep(POLL_INTERVAL_SECONDS)
+
+    raise TimeoutError(f"Ollama did not become ready within {READY_TIMEOUT_SECONDS}s")
+
+
+def _request_timeout(max_tokens: int) -> int:
+    return max(MIN_REQUEST_TIMEOUT_SECONDS, max_tokens // 4 + 60)
 
 
 class Predictor:
-    """Single-model vLLM chat predictor."""
+    """Single-model Ollama chat predictor."""
 
     def __init__(self) -> None:
-        self.llm: Optional[LLM] = None
-        self.model_name = DEFAULT_MODEL_NAME
-        self._load_lock = threading.Lock()
+        self.model_name = DISPLAY_MODEL_NAME
 
     def setup(self) -> None:
-        self._load_model()
-
-    def _load_model(self) -> LLM:
-        if self.llm is not None:
-            return self.llm
-
-        with self._load_lock:
-            if self.llm is not None:
-                return self.llm
-
-            model_path = DEFAULT_MODEL_DIR
-            if not os.path.isdir(model_path):
-                model_path = os.environ.get("HF_MODEL", "Qwen/Qwen3.5-9B")
-
-            llm_kwargs: Dict[str, Any] = {
-                "model": model_path,
-                "max_model_len": MAX_MODEL_LEN,
-                "gpu_memory_utilization": GPU_MEMORY_UTILIZATION,
-                "trust_remote_code": True,
-                "language_model_only": True,
-            }
-            if QUANTIZATION and QUANTIZATION not in ("none", "false", "off"):
-                llm_kwargs["quantization"] = QUANTIZATION
-
-            print(
-                f"Loading model from {model_path} "
-                f"(quantization={QUANTIZATION or 'none'}, max_model_len={MAX_MODEL_LEN})...",
-                flush=True,
-            )
-            self.llm = LLM(**llm_kwargs)
-            print(f"Model {self.model_name} loaded.", flush=True)
-            return self.llm
+        _ensure_ollama_running()
+        print(f"Warming up {LLM_MODEL}...", flush=True)
+        self.predict(
+            messages=[{"role": "user", "content": "Hi"}],
+            temperature=0.0,
+            max_tokens=1,
+            think=False,
+        )
+        print(f"Model {self.model_name} ready.", flush=True)
 
     def predict(
         self,
@@ -72,51 +107,47 @@ class Predictor:
         max_tokens: Optional[int] = None,
         top_p: Optional[float] = None,
         top_k: Optional[int] = None,
+        think: bool = False,
     ) -> Dict[str, Any]:
-        llm = self._load_model()
+        _ensure_ollama_running()
+
         budget = max_tokens if max_tokens is not None else DEFAULT_MAX_TOKENS
         budget = min(max(budget, 1), MAX_TOKENS_LIMIT)
 
-        sampling_kwargs: Dict[str, Any] = {
+        options: Dict[str, Any] = {
             "temperature": temperature,
-            "max_tokens": budget,
+            "num_predict": budget,
+            "num_ctx": OLLAMA_NUM_CTX,
         }
         if top_p is not None:
-            sampling_kwargs["top_p"] = top_p
+            options["top_p"] = top_p
         if top_k is not None:
-            sampling_kwargs["top_k"] = top_k
+            options["top_k"] = top_k
 
-        sampling_params = SamplingParams(**sampling_kwargs)
-        chat_template_kwargs = {"enable_thinking": ENABLE_THINKING}
+        payload: Dict[str, Any] = {
+            "model": LLM_MODEL,
+            "messages": messages,
+            "stream": False,
+            "think": think,
+            "options": options,
+        }
 
-        outputs = llm.chat(
-            messages=messages,
-            sampling_params=sampling_params,
-            chat_template_kwargs=chat_template_kwargs,
+        response = requests.post(
+            f"{_ollama_base_url()}/api/chat",
+            json=payload,
+            timeout=_request_timeout(budget),
         )
+        response.raise_for_status()
+        data = response.json()
 
-        if not outputs:
-            raise RuntimeError("vLLM returned no outputs")
-
-        request_output = outputs[0]
-        if not request_output.outputs:
-            raise RuntimeError("vLLM returned no completion choices")
-
-        completion = request_output.outputs[0]
-        content = (completion.text or "").strip()
-
-        prompt_tokens: Optional[int] = None
-        completion_tokens: Optional[int] = None
-        if getattr(request_output, "prompt_token_ids", None) is not None:
-            prompt_tokens = len(request_output.prompt_token_ids)
-        if getattr(completion, "token_ids", None) is not None:
-            completion_tokens = len(completion.token_ids)
+        message = data.get("message") or {}
+        content = (message.get("content") or "").strip()
 
         return {
             "content": content,
             "model": self.model_name,
             "usage": {
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": completion_tokens,
+                "prompt_tokens": data.get("prompt_eval_count"),
+                "completion_tokens": data.get("eval_count"),
             },
         }

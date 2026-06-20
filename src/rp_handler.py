@@ -1,26 +1,16 @@
-"""RunPod serverless handler for Qwen3.5-9B chat via vLLM."""
+"""RunPod serverless handler for Qwen3.5-9B chat via Ollama."""
 
 import os
-import threading
 from typing import Any, Dict, List, Optional
 
 import runpod
 from predict import Predictor
-from rp_schema import INPUT_VALIDATIONS
+from rp_schema import INPUT_VALIDATIONS, VALID_REASONING_EFFORTS
 from runpod.serverless.utils import rp_debugger
 from runpod.serverless.utils.rp_validator import validate
 
 MODEL = Predictor()
-
-
-def _preload_model() -> None:
-    try:
-        MODEL.setup()
-    except Exception as exc:
-        print(f"Background model preload failed: {exc}", flush=True)
-
-
-threading.Thread(target=_preload_model, daemon=True).start()
+MODEL.setup()
 
 VALID_ROLES = frozenset({"system", "user", "assistant"})
 
@@ -37,6 +27,13 @@ def _env_int(name: str, default: int) -> int:
     if raw is None:
         return default
     return int(raw)
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.lower() in ("1", "true", "yes")
 
 
 def _validate_messages(messages: Any) -> Optional[str]:
@@ -61,6 +58,30 @@ def _validate_messages(messages: Any) -> Optional[str]:
     return None
 
 
+def _validate_reasoning_effort(reasoning_effort: Any) -> Optional[str]:
+    if reasoning_effort is None:
+        return None
+    if not isinstance(reasoning_effort, str):
+        return "reasoning_effort must be a string"
+    if reasoning_effort.lower() not in VALID_REASONING_EFFORTS:
+        return (
+            "reasoning_effort must be one of: "
+            + ", ".join(sorted(VALID_REASONING_EFFORTS))
+        )
+    return None
+
+
+def _resolve_think(job_input: dict) -> bool:
+    if job_input.get("think") is not None:
+        return bool(job_input["think"])
+
+    reasoning_effort = job_input.get("reasoning_effort")
+    if reasoning_effort is not None:
+        return reasoning_effort.lower() != "none"
+
+    return _env_bool("ENABLE_THINKING", False)
+
+
 def _apply_env_defaults(job_input: dict) -> dict:
     resolved = dict(job_input)
     if resolved.get("temperature") is None:
@@ -74,11 +95,6 @@ def _apply_env_defaults(job_input: dict) -> dict:
 
 @rp_debugger.FunctionTimer
 def run_llm_job(job: Dict[str, Any]) -> Dict[str, Any]:
-    try:
-        MODEL.setup()
-    except Exception as exc:
-        return {"error": f"Model load failed: {exc}"}
-
     job_input = job["input"]
 
     with rp_debugger.LineTimer("validation_step"):
@@ -91,10 +107,15 @@ def run_llm_job(job: Dict[str, Any]) -> Dict[str, Any]:
             return {"error": str(input_validation["errors"])}
         job_input = _apply_env_defaults(input_validation["validated_input"])
 
+        reasoning_error = _validate_reasoning_effort(job_input.get("reasoning_effort"))
+        if reasoning_error:
+            return {"error": reasoning_error}
+
     messages: List[Dict[str, str]] = [
         {"role": str(msg["role"]), "content": str(msg["content"])}
         for msg in job_input["messages"]
     ]
+    think = _resolve_think(job_input)
 
     with rp_debugger.LineTimer("prediction_step"):
         try:
@@ -104,6 +125,7 @@ def run_llm_job(job: Dict[str, Any]) -> Dict[str, Any]:
                 max_tokens=job_input["max_tokens"],
                 top_p=job_input.get("top_p"),
                 top_k=job_input.get("top_k"),
+                think=think,
             )
         except Exception as exc:
             return {"error": f"Inference failed: {exc}"}
